@@ -397,6 +397,15 @@ function mLabel(d){return d.toLocaleDateString(undefined,{month:'long',year:'num
 function sameDay(a,b){return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();}
 function t2m(t){var p=t.split(':').map(Number);return p[0]*60+p[1];}
 function uid(){return window.crypto&&window.crypto.randomUUID?window.crypto.randomUUID():'id-'+Date.now()+'-'+Math.random().toString(16).slice(2);}
+function sha256Hex(str){
+  var enc=new TextEncoder().encode(str);
+  return crypto.subtle.digest('SHA-256',enc).then(function(buf){
+    return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+  });
+}
+function hashPassword(password,salt){
+  return sha256Hex(salt+':'+password);
+}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function initials(n){var p=n.trim().split(/\s+/);return((p[0]||'')[0]||'')+((p[1]||'')[0]||'');}
 function fmtTime(t){if(!t)return '';var p=t.split(':').map(Number);var h=p[0],m=p[1],ampm=h>=12?'PM':'AM';h=h%12||12;return h+':'+(m<10?'0':'')+m+' '+ampm;}
@@ -618,13 +627,15 @@ function renderAuth(){
       var p=document.getElementById('loginPass').value||'';
       if(!u||!p){showAuthErr('Please enter username and password.');return;}
       if(!state.users[u]){showAuthErr('Account not found. Please create one first.');return;}
-      if(state.users[u].password!==p){showAuthErr('Incorrect password.');return;}
-      state.currentUser=u;
-      if(state.users[u].role!=='admin'){
-        var me=state.employees.find(function(e){return e.linkedUsername===u;});
-        if(me)state.activeEmployeeId=me.id;
-      }
-      saveCurrentUser().then(saveActive).then(bootApp);
+      hashPassword(p,state.users[u].salt).then(function(hash){
+        if(hash!==state.users[u].passwordHash){showAuthErr('Incorrect password.');return;}
+        state.currentUser=u;
+        if(state.users[u].role!=='admin'){
+          var me=state.employees.find(function(e){return e.linkedUsername===u;});
+          if(me)state.activeEmployeeId=me.id;
+        }
+        saveCurrentUser().then(saveActive).then(bootApp);
+      });
     };
     document.getElementById('loginPass').onkeydown=function(e){if(e.key==='Enter')document.getElementById('authLoginBtn').click();};
   } else {
@@ -639,13 +650,16 @@ function renderAuth(){
       if(p!==p2){showAuthErr('Passwords do not match.');return;}
       if(state.users[u]){showAuthErr('Username already taken.');return;}
       var isFirst=Object.keys(state.users).length===0;
-      state.users[u]={password:p,displayName:dn,role:isFirst?'admin':'employee'};
-      state.currentUser=u;
-      if(isFirst){
-        var seed={id:uid(),name:dn,role:'',shiftStart:'09:00',shiftEnd:'18:00',weeklyOff:[0],linkedUsername:u};
-        state.employees=[seed];state.activeEmployeeId=seed.id;
-      }
-      Promise.all([saveUsers(),saveCurrentUser(),saveEmployees(),saveActive()]).then(bootApp);
+      var salt=uid();
+      hashPassword(p,salt).then(function(hash){
+        state.users[u]={passwordHash:hash,salt:salt,displayName:dn,role:isFirst?'admin':'employee'};
+        state.currentUser=u;
+        var newEmp={id:uid(),name:dn,role:'',shiftStart:'09:00',shiftEnd:'18:00',weeklyOff:[0],linkedUsername:u};
+        state.employees.push(newEmp);
+        if(isFirst)state.activeEmployeeId=newEmp.id;
+        addActivity('present',dn,'Account created and auto-linked to new employee record',newEmp.id);
+        Promise.all([saveUsers(),saveCurrentUser(),saveEmployees(),saveActive(),saveActivityLog()]).then(bootApp);
+      });
     };
   }
 }
