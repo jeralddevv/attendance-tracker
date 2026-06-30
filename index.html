@@ -559,7 +559,7 @@ function clearLog(eid,ds){if(state.logs[eid])delete state.logs[eid][ds];}
 
 function metrics(emp,log){
   if(!log)return{lateMins:0,otHours:0,hours:0};
-  if(log.status==='ob'){
+  if(log.status==='ob'||log.status==='hostob'){
     if(!log.in||!log.out)return{lateMins:0,otHours:0,hours:0};
     var inM=t2m(log.in),outM=t2m(log.out);
     var workedHours=Math.round(Math.max(0,outM-inM)/60*10)/10;
@@ -614,6 +614,8 @@ function computeRange(emp,start,end){
     if(log){
       var m=metrics(emp,log);
       if(log.status==='present'){present++;hours+=m.hours;ot+=m.otHours;late+=m.lateMins;}
+      else if(log.status==='ob'){ob++;hours+=m.hours;ot+=m.otHours;}
+      else if(log.status==='hostob'){present++;ob++;hours+=m.hours;ot+=m.otHours;}
       else if(log.status==='ob'){ob++;hours+=m.hours;ot+=m.otHours;}
       else if(log.status==='absent')absent++;
       else if(log.status==='leave')leave++;
@@ -888,6 +890,11 @@ function renderCalTab(){
           html+='<span class="cal-tag ob"'+ttl+'>OB</span>';
           if(log.in&&log.out)html+='<span class="cal-tag time">'+fmtTime(log.in)+'–'+fmtTime(log.out)+'</span>';
           if(mo.otHours>0)html+='<span class="cal-tag ot">+'+mo.otHours.toFixed(1)+'h OT</span>';
+        } else if(log.status==='hostob'){
+          var mho=metrics(emp,log);
+          html+='<span class="cal-tag present"'+ttl+'>Host Store</span><span class="cal-tag ob">+OB</span>';
+          if(log.in&&log.out)html+='<span class="cal-tag time">'+fmtTime(log.in)+'–'+fmtTime(log.out)+'</span>';
+          if(mho.otHours>0)html+='<span class="cal-tag ot">+'+mho.otHours.toFixed(1)+'h OT</span>';
         } else if(log.status==='changeday'){
           html+='<span class="cal-tag" style="background:var(--teal-tint);color:var(--teal);" '+ttl+'>Day-off Chg</span>';
         } else if(log.status==='changetime'){
@@ -1500,8 +1507,8 @@ function renderDayModal(ds){
   var holType=holiday?(holiday.type==='regular'?'regular':'special'):'special';
   var withOT=log.withOT||false;
   var statusOpts=[
-    ['none','No record'],['present','Present'],['absent','Absent'],['leave','Leave'],
-    ['ob','Official Business'],['changeday','Change Day-Off'],['changetime','Change Time Schedule']
+    ['none','No record'],['present','Host Store'],['absent','Absent'],['leave','Leave'],
+    ['ob','Official Business'],['hostob','Host Store + OB'],['changeday','Change Day-Off'],['changetime','Change Time Schedule']
   ];
   var html='<div class="modal-backdrop" id="dayBd"><div class="modal-panel">';
   html+='<div class="modal-head"><h3>'+d.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</h3>'+
@@ -1543,6 +1550,18 @@ function renderDayModal(ds){
     '<label class="toggle-switch"><input type="checkbox" id="obOTToggle"'+(withOBOT?' checked':'')+'><span class="toggle-knob"></span></label>'+
     '</div>'+
     '<div class="field"><label for="obRemarks">Remarks</label><textarea id="obRemarks" placeholder="Purpose, details…">'+esc(log.remarks||'')+'</textarea></div>'+
+    '</div>';
+  var hoIn=log.in||emp.shiftStart,hoOut=log.out||emp.shiftEnd,withHoOT=log.withOT||false;
+  html+='<div id="hostobF" style="'+(status==='hostob'?'':'display:none;')+'">'+
+    '<div class="field-row">'+
+    '<div class="field"><label for="hoIn">Time in</label><input type="time" id="hoIn" value="'+hoIn+'"></div>'+
+    '<div class="field"><label for="hoOut">Time out</label><input type="time" id="hoOut" value="'+hoOut+'"></div></div>'+
+    '<div class="field"><label for="hoDest">OB Destination</label><input type="text" id="hoDest" value="'+esc(log.destination||'')+'" placeholder="e.g. Client office, City Hall"></div>'+
+    '<div class="toggle-row">'+
+    '<label for="hoOTToggle">With Overtime</label>'+
+    '<label class="toggle-switch"><input type="checkbox" id="hoOTToggle"'+(withHoOT?' checked':'')+'><span class="toggle-knob"></span></label>'+
+    '</div>'+
+    '<div class="field"><label for="hostobRemarks">Remarks</label><textarea id="hostobRemarks" placeholder="Purpose, details…">'+esc(log.remarks||'')+'</textarea></div>'+
     '</div>';
   var origDay=log.originalDay!=null?log.originalDay:((emp.weeklyOff||[])[0]!=null?(emp.weeklyOff||[])[0]:0);
   var newDay=log.newDay!=null?log.newDay:1;
@@ -1595,13 +1614,21 @@ function attachModal(){
       document.querySelectorAll('.holtype-chip').forEach(function(c){c.classList.toggle('active',c===chip);});
     };
   });
-  var paneIds={present:'presentF',ob:'obF',changeday:'cdF',changetime:'ctF',absent:'absLeaveF',leave:'absLeaveF'};
+  var paneIds={present:'presentF',ob:'obF',hostob:'hostobF',changeday:'cdF',changetime:'ctF',absent:'absLeaveF',leave:'absLeaveF'};
   document.querySelectorAll('.status-chip').forEach(function(chip){
     chip.onclick=function(){
       curStatus=chip.getAttribute('data-status');
       document.querySelectorAll('.status-chip').forEach(function(c){c.classList.toggle('active',c===chip);});
-      ['presentF','obF','cdF','ctF','absLeaveF'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
+      ['presentF','obF','hostobF','cdF','ctF','absLeaveF'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
       var pane=paneIds[curStatus];if(pane){var el=document.getElementById(pane);if(el)el.style.display='';}
+      if(curStatus==='present'){
+        var rmk=document.getElementById('dRemarksPresent');
+        if(rmk&&!rmk.value.trim())rmk.value='Host Store';
+      }
+      if(curStatus==='hostob'){
+        var rmk2=document.getElementById('hostobRemarks');
+        if(rmk2&&!rmk2.value.trim())rmk2.value='Host Store';
+      }
     };
   });
   var errEl=document.getElementById('dayErr');
@@ -1635,6 +1662,15 @@ function attachModal(){
       var hasOBOT=document.getElementById('obOTToggle').checked;
       setLog(emp.id,ds,{status:'ob',in:oIn,out:oOut,destination:obD,withOT:hasOBOT,remarks:document.getElementById('obRemarks').value.trim()});
       actDesc='OB at '+obD+' '+oIn+'–'+oOut+(hasOBOT?' (OT)':'')+' on '+ds;
+    } else if(curStatus==='hostob'){
+      var hoI=document.getElementById('hoIn').value,hoO=document.getElementById('hoOut').value;
+      if(!hoI||!hoO){errEl.textContent='Add time in and time out.';errEl.style.display='';return;}
+      if(t2m(hoO)<=t2m(hoI)){errEl.textContent='Time out must be after time in.';errEl.style.display='';return;}
+      var hoD=document.getElementById('hoDest').value.trim();
+      if(!hoD){errEl.textContent='Please enter the OB destination.';errEl.style.display='';return;}
+      var hasHoOT=document.getElementById('hoOTToggle').checked;
+      setLog(emp.id,ds,{status:'hostob',in:hoI,out:hoO,destination:hoD,withOT:hasHoOT,remarks:document.getElementById('hostobRemarks').value.trim()});
+      actDesc='Host Store + OB at '+hoD+' '+hoI+'–'+hoO+(hasHoOT?' (OT)':'')+' on '+ds;
     } else if(curStatus==='changeday'){
       var origD=Number(document.getElementById('cdOrig').value);
       var newD=Number(document.getElementById('cdNew').value);
