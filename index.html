@@ -117,7 +117,7 @@
   .main-col{flex:1 1 auto;margin-left:236px;min-height:100vh;min-width:0;transition:margin-left .22s ease;}
   .main-col.sidebar-collapsed{margin-left:58px;}
 
-  .app-shell{max-width:1120px;margin:0 auto;padding:22px 20px 60px;}
+  .app-shell{max-width:1400px;margin:0 auto;padding:22px 24px 60px;}
   .topbar-slim{display:flex;align-items:center;gap:10px;margin-bottom:20px;}
   .topbar-slim .page-title{font-family:var(--font-display);font-size:17px;font-weight:700;margin:0;flex:1;letter-spacing:-.01em;min-width:0;}
   .hamburger-btn{display:none;flex:none;}
@@ -149,7 +149,7 @@
   /* EMP SELECT */
   .emp-select-row{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
   .emp-select-row label{font-family:var(--font-display);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);white-space:nowrap;}
-  .emp-select-row select{border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;font-size:13.5px;background:var(--surface);color:var(--ink);font-weight:600;flex:1;min-width:0;}
+  .emp-select-row select{border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;font-size:13.5px;background:var(--surface);color:var(--ink);font-weight:600;max-width:260px;min-width:0;}
 
   /* TABS */
   .tabs-row{display:flex;align-items:center;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
@@ -1029,7 +1029,7 @@ function renderDashboardPage(){
     html+='<div class="info-banner">'+ICONS.shield+'<span>You can only view and manage your own attendance.</span></div>';
   }
   if(isAdmin()&&state.employees.length>1){
-    html+='<div class="emp-select-row"><label for="dashEmpSelect">Viewing</label><select id="dashEmpSelect">';
+    html+='<div style="margin-bottom:16px;"><select id="dashEmpSelect" style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;font-size:13.5px;background:var(--surface);color:var(--ink);font-weight:600;max-width:240px;">';
     state.employees.forEach(function(e){
       html+='<option value="'+e.id+'"'+(e.id===state.activeEmployeeId?' selected':'')+'>'+esc(e.name)+'</option>';
     });
