@@ -101,7 +101,7 @@
     .sidebar{transform:translateX(-100%);width:236px !important;box-shadow:none;}
     .sidebar.open{transform:translateX(0);box-shadow:0 0 40px rgba(0,0,0,.2);}
     .sidebar.collapsed{width:236px !important;}
-    .sidebar-collapse-btn{display:none;}
+    .sidebar-collapse-btn{display:none; !important;}
     .main-col{margin-left:0 !important;}
     .sidebar-backdrop{display:block;position:fixed;inset:0;background:var(--backdrop);z-index:39;opacity:0;pointer-events:none;transition:opacity .2s;}
     .sidebar-backdrop.show{opacity:1;pointer-events:auto;}
@@ -120,7 +120,7 @@
   .app-shell{max-width:1400px;width:100%;margin:0 auto;padding:22px 24px 60px;}
   .topbar-slim{display:flex;align-items:center;gap:10px;margin-bottom:20px;}
   .topbar-slim .page-title{font-family:var(--font-display);font-size:17px;font-weight:700;margin:0;flex:1;letter-spacing:-.01em;min-width:0;}
-  .hamburger-btn{display:none;flex:none;}
+  .hamburger-btn{display:none;flex:none;margin-right:8px;}
   @media(max-width:480px){.app-shell{padding:16px 14px 60px;}.topbar-slim .page-title{font-size:15px;}}
 
   /* BUTTONS */
