@@ -820,6 +820,7 @@ function renderTopbarHtml(){
   var titles={dashboard:'Dashboard',employees:'Employees',admin:'Admin',activitylog:'Activity Log'};
   return '<button type="button" class="icon-btn hamburger-btn" id="hamburgerBtn">'+ICONS.menu+'</button>'+
     '<h2 class="page-title">'+(titles[state.page]||'Dashboard')+'</h2>'+
+    '<button type="button" class="icon-btn" id="refreshBtn" title="Refresh data">'+ICONS.sync+'</button>'+
     '<button type="button" class="icon-btn" id="themeToggleTop">'+(state.theme==='dark'?ICONS.sun:ICONS.moon)+'</button>';
 }
 
@@ -1297,21 +1298,21 @@ function attachMain(){
   });
   var hb=document.getElementById('hamburgerBtn');
   if(hb)hb.onclick=function(){state.sidebarOpen=!state.sidebarOpen;render();};
-  var bd=document.getElementById('sidebarBackdrop');
-  if(bd)bd.onclick=function(){state.sidebarOpen=false;render();};
-  var tt=document.getElementById('themeToggleTop');
-  if(tt)tt.onclick=toggleTheme;
-  var ts=document.getElementById('themeToggleSide');
-  if(ts)ts.onclick=toggleTheme;
-  var lo=document.getElementById('logoutBtn');
-  if(lo)lo.onclick=logout;
-  var cb=document.getElementById('sidebarCollapseBtn');
-  if(cb)cb.onclick=function(){
-    state.sidebarCollapsed=!state.sidebarCollapsed;
-    saveSidebarCollapsed();
-    render();
-  };
-}
+  var rb=document.getElementById('refreshBtn');
+  if(rb)rb.onclick=function(){
+    rb.style.opacity='0.5';
+    loadAll().then(function(data){
+      state.users=data.users||{};
+      state.employees=data.employees;
+      state.logs=data.logs;
+      state.holidays=data.holidays;
+      state.activityLog=data.activityLog||[];
+      render();
+    }).catch(function(){
+      rb.style.opacity='1';
+  });
+};
+
 function attachPage(){
   if(state.page==='employees')attachEmployeesPage();
   else if(state.page==='admin')attachAdminPage();
