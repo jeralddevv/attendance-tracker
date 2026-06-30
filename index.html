@@ -576,6 +576,37 @@ function metrics(emp,log){
   };
 }
 
+function getWeekStart(d){
+  var ws=new Date(d);
+  ws.setDate(ws.getDate()-ws.getDay());
+  ws.setHours(0,0,0,0);
+  return ws;
+}
+function getChangedayDsForWeek(emp,d,excludeDs){
+  var ws=getWeekStart(d),we=new Date(ws);we.setDate(we.getDate()+6);
+  var logsForEmp=state.logs[emp.id]||{};
+  for(var dsKey in logsForEmp){
+    if(logsForEmp[dsKey].status==='changeday'&&dsKey!==excludeDs){
+      var ld=parseIso(dsKey);
+      if(ld>=ws&&ld<=we)return dsKey;
+    }
+  }
+  return null;
+}
+function getChangedayLogForWeek(emp,d){
+  var ds=getChangedayDsForWeek(emp,d,null);
+  return ds?(state.logs[emp.id]||{})[ds]:null;
+}
+function isDayOffForDate(emp,d){
+  var chg=getChangedayLogForWeek(emp,d);
+  var dow=d.getDay();
+  if(chg){
+    if(dow===chg.newDay)return true;
+    if(dow===chg.originalDay)return false;
+  }
+  return (emp.weeklyOff||[]).indexOf(dow)>-1;
+}
+
 function computeRange(emp,start,end){
   var present=0,absent=0,leave=0,ob=0,hours=0,ot=0,late=0,d=new Date(start);
   while(d<=end){
@@ -833,7 +864,7 @@ function renderCalTab(){
     var cd=new Date(gs);cd.setDate(gs.getDate()+i);
     var inMonth=cd.getMonth()===state.viewMonth.getMonth();
     var ds=isoDate(cd),isToday=sameDay(cd,today);
-    var isOff=(emp.weeklyOff||[]).indexOf(cd.getDay())>-1;
+    var isOff=isDayOffForDate(emp,cd);
     var holiday=holidayFor(ds),log=getLog(emp.id,ds);
     var cc='cal-cell'+(inMonth?'':' outside')+(isOff&&inMonth&&!log?' is-off-day':'');
     html+='<div class="'+cc+'"'+(inMonth?' data-day="'+ds+'"':'')+'>';
@@ -910,7 +941,7 @@ function dayRowHtml(emp,ds){
   } else if(holiday){
     statusCell='<span class="cal-tag holiday '+(holiday.type||'custom')+'">'+esc(holiday.label)+'</span>';
   } else {
-    var isOff2=(emp.weeklyOff||[]).indexOf(d.getDay())>-1;
+    var isOff2=isDayOffForDate(emp,d);
     statusCell=isOff2?'<span class="cal-tag off">Day off</span>':'<span style="color:var(--ink-faint);">—</span>';
   }
   return '<tr><td class="num">'+d.getDate()+'</td><td>'+dayName+'</td><td>'+statusCell+'</td>'+
@@ -1589,10 +1620,12 @@ function attachModal(){
       var hasOBOT=document.getElementById('obOTToggle').checked;
       setLog(emp.id,ds,{status:'ob',in:oIn,out:oOut,destination:obD,withOT:hasOBOT,remarks:document.getElementById('obRemarks').value.trim()});
       actDesc='OB at '+obD+' '+oIn+'–'+oOut+(hasOBOT?' (OT)':'')+' on '+ds;
-    } else if(curStatus==='changeday'){
+    } } else if(curStatus==='changeday'){
       var origD=Number(document.getElementById('cdOrig').value);
       var newD=Number(document.getElementById('cdNew').value);
       if(origD===newD){errEl.textContent='Original and new day off must be different.';errEl.style.display='';return;}
+      var conflictDs=getChangedayDsForWeek(emp,d,ds);
+      if(conflictDs){errEl.textContent='This week already has a day-off change logged on '+conflictDs+'. Remove it first.';errEl.style.display='';return;}
       setLog(emp.id,ds,{status:'changeday',originalDay:origD,newDay:newD,remarks:document.getElementById('cdRemarks').value.trim()});
       actDesc='Day-off changed from '+WD_FULL[origD]+' to '+WD_FULL[newD]+' ('+ds+')';
     } else if(curStatus==='changetime'){
