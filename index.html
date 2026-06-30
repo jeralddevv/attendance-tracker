@@ -1594,10 +1594,6 @@ function attachModal(){
       var newD=Number(document.getElementById('cdNew').value);
       if(origD===newD){errEl.textContent='Original and new day off must be different.';errEl.style.display='';return;}
       setLog(emp.id,ds,{status:'changeday',originalDay:origD,newDay:newD,remarks:document.getElementById('cdRemarks').value.trim()});
-      var offList=emp.weeklyOff||[];
-      var idx=offList.indexOf(origD);
-      if(idx>-1){offList[idx]=newD;}else{offList.push(newD);}
-      emp.weeklyOff=offList;
       actDesc='Day-off changed from '+WD_FULL[origD]+' to '+WD_FULL[newD]+' ('+ds+')';
     } else if(curStatus==='changetime'){
       var ctS=document.getElementById('ctStart').value,ctE=document.getElementById('ctEnd').value;
