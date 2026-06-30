@@ -1620,7 +1620,7 @@ function attachModal(){
       var hasOBOT=document.getElementById('obOTToggle').checked;
       setLog(emp.id,ds,{status:'ob',in:oIn,out:oOut,destination:obD,withOT:hasOBOT,remarks:document.getElementById('obRemarks').value.trim()});
       actDesc='OB at '+obD+' '+oIn+'–'+oOut+(hasOBOT?' (OT)':'')+' on '+ds;
-    } } else if(curStatus==='changeday'){
+    } else if(curStatus==='changeday'){
       var origD=Number(document.getElementById('cdOrig').value);
       var newD=Number(document.getElementById('cdNew').value);
       if(origD===newD){errEl.textContent='Original and new day off must be different.';errEl.style.display='';return;}
