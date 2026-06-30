@@ -384,7 +384,7 @@ var state={
   viewMonth:som(new Date()),modal:null,
   editingEmployeeId:null,newOffDays:[0],sidebarOpen:false,sidebarCollapsed:false,
   adminYear:new Date().getFullYear(),newHolidayType:'special',
-  authTab:'login'
+  authTab:'login',forgotMode:false
 };
 
 /* ══════════════════════════════════════ DATE HELPERS ══════════════════════════════════════ */
@@ -612,13 +612,43 @@ function renderAuth(){
     (!USING_SHARED_STORAGE?'<p style="margin:4px 0 0;font-size:11px;color:var(--amber);background:var(--amber-tint);padding:3px 8px;border-radius:5px;">⚠ Local mode — data stays in this browser only</p>':
     '<p style="margin:4px 0 0;font-size:11px;color:var(--green);background:var(--green-tint);padding:3px 8px;border-radius:5px;">✓ Synced — log in on any device to see your data</p>')+
     '</div></div>'+
+    (state.forgotMode?'':
     '<div class="auth-tabs">'+
     '<button class="auth-tab'+(isLogin?' active':'')+'" id="authTabLogin">Sign In</button>'+
     '<button class="auth-tab'+(!isLogin?' active':'')+'" id="authTabCreate">Create Account</button>'+
-    '</div>'+
+    '</div>')+
     '<div id="authErr" class="auth-err"></div>'+
-    (isLogin?renderLoginForm():renderCreateForm())+
+    (state.forgotMode?renderForgotForm():(isLogin?renderLoginForm():renderCreateForm()))+
     '</div></div>';
+
+  if(state.forgotMode){
+    var forgotLink2=document.getElementById('forgotPwLink'); // not present in forgot mode, skip
+    var backLink=document.getElementById('backToLoginLink');
+    if(backLink)backLink.onclick=function(){state.forgotMode=false;renderAuth();};
+    var fpBtn=document.getElementById('fpSubmitBtn');
+    if(fpBtn)fpBtn.onclick=function(){
+      var u=(document.getElementById('fpUser').value||'').trim().toLowerCase();
+      var p=document.getElementById('fpPass').value||'';
+      var p2=document.getElementById('fpPass2').value||'';
+      if(!u||!p){showAuthErr('Please enter your username and a new password.');return;}
+      if(!state.users[u]){showAuthErr('Account not found.');return;}
+      if(p.length<6){showAuthErr('Password must be at least 6 characters.');return;}
+      if(p!==p2){showAuthErr('Passwords do not match.');return;}
+      var salt=uid();
+      hashPassword(p,salt).then(function(hash){
+        state.users[u].passwordHash=hash;
+        state.users[u].salt=salt;
+        delete state.users[u].password;
+        saveUsers().then(function(){
+          state.forgotMode=false;
+          state.authTab='login';
+          renderAuth();
+        });
+      });
+    };
+    return; // forgot-mode wiring done, skip the rest below
+  }
+
   document.getElementById('authTabLogin').onclick=function(){state.authTab='login';renderAuth();};
   document.getElementById('authTabCreate').onclick=function(){state.authTab='create';renderAuth();};
   if(isLogin){
@@ -638,6 +668,8 @@ function renderAuth(){
       });
     };
     document.getElementById('loginPass').onkeydown=function(e){if(e.key==='Enter')document.getElementById('authLoginBtn').click();};
+    var forgotLink=document.getElementById('forgotPwLink');
+    if(forgotLink)forgotLink.onclick=function(){state.forgotMode=true;renderAuth();};
   } else {
     document.getElementById('authCreateBtn').onclick=function(){
       var u=(document.getElementById('createUser').value||'').trim().toLowerCase().replace(/\s+/g,'');
@@ -663,10 +695,19 @@ function renderAuth(){
     };
   }
 }
+
 function renderLoginForm(){
   return '<div class="form-group"><label>Username</label><input type="text" id="loginUser" placeholder="your username" autocomplete="username"></div>'+
     '<div class="form-group"><label>Password</label><input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password"></div>'+
-    '<button class="btn btn-primary" id="authLoginBtn" style="width:100%;justify-content:center;padding:11px;">Sign In</button>';
+    '<button class="btn btn-primary" id="authLoginBtn" style="width:100%;justify-content:center;padding:11px;">Sign In</button>'+
+    '<button type="button" id="forgotPwLink" style="width:100%;text-align:center;background:transparent;border:none;color:var(--ink-soft);font-size:12.5px;font-weight:600;cursor:pointer;padding:10px 0 0;">Forgot password?</button>';
+}
+function renderForgotForm(){
+  return '<div class="form-group"><label>Username</label><input type="text" id="fpUser" placeholder="your username" autocomplete="username"></div>'+
+    '<div class="form-group"><label>New Password</label><input type="password" id="fpPass" placeholder="Min 6 characters" autocomplete="new-password"></div>'+
+    '<div class="form-group"><label>Confirm New Password</label><input type="password" id="fpPass2" placeholder="Re-enter new password" autocomplete="new-password"></div>'+
+    '<button class="btn btn-primary" id="fpSubmitBtn" style="width:100%;justify-content:center;padding:11px;">Update Password</button>'+
+    '<button type="button" id="backToLoginLink" style="width:100%;text-align:center;background:transparent;border:none;color:var(--ink-soft);font-size:12.5px;font-weight:600;cursor:pointer;padding:10px 0 0;">Back to Sign In</button>';
 }
 function renderCreateForm(){
   return '<div class="form-group"><label>Display Name</label><input type="text" id="createDisplay" placeholder="e.g. Maria Santos" autocomplete="name"></div>'+
@@ -689,6 +730,16 @@ function logout(){
     document.getElementById('appRoot').style.display='none';
     document.getElementById('authRoot').style.display='';
     renderAuth();
+  });
+}
+function adminResetPassword(username,newPassword){
+  var salt=uid();
+  return hashPassword(newPassword,salt).then(function(hash){
+    if(!state.users[username])return false;
+    state.users[username].passwordHash=hash;
+    state.users[username].salt=salt;
+    delete state.users[username].password; // clean up old plaintext if present
+    return saveUsers();
   });
 }
 
