@@ -1624,7 +1624,7 @@ function attachModal(){
       var origD=Number(document.getElementById('cdOrig').value);
       var newD=Number(document.getElementById('cdNew').value);
       if(origD===newD){errEl.textContent='Original and new day off must be different.';errEl.style.display='';return;}
-      var conflictDs=getChangedayDsForWeek(emp,d,ds);
+      var conflictDs=getChangedayDsForWeek(emp,parseIso(ds),ds);
       if(conflictDs){errEl.textContent='This week already has a day-off change logged on '+conflictDs+'. Remove it first.';errEl.style.display='';return;}
       setLog(emp.id,ds,{status:'changeday',originalDay:origD,newDay:newD,remarks:document.getElementById('cdRemarks').value.trim()});
       actDesc='Day-off changed from '+WD_FULL[origD]+' to '+WD_FULL[newD]+' ('+ds+')';
