@@ -1312,6 +1312,20 @@ function attachMain(){
       rb.style.opacity='1';
     });
   };
+  var bd=document.getElementById('sidebarBackdrop');
+  if(bd)bd.onclick=function(){state.sidebarOpen=false;render();};
+  var tt=document.getElementById('themeToggleTop');
+  if(tt)tt.onclick=toggleTheme;
+  var ts=document.getElementById('themeToggleSide');
+  if(ts)ts.onclick=toggleTheme;
+  var lo=document.getElementById('logoutBtn');
+  if(lo)lo.onclick=logout;
+  var cb=document.getElementById('sidebarCollapseBtn');
+  if(cb)cb.onclick=function(){
+    state.sidebarCollapsed=!state.sidebarCollapsed;
+    saveSidebarCollapsed();
+    render();
+  };
 }
 function attachPage(){
   if(state.page==='employees')attachEmployeesPage();
