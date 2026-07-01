@@ -1557,7 +1557,7 @@ function renderDayModal(ds){
     html+='<button type="button" class="chip status-chip'+(isActive?' active':'')+'" data-status="'+o[0]+'">'+o[1]+'</button>';
   });
   html+='</div>';
-  html+='<div id="presentF" style="'+(status==='present'?'':'display:none;')+'">'+
+  html+='<div id="presentF" style="'+(initStatuses.indexOf('present')>-1?'':'display:none;')+'">'+
     '<div class="field-row">'+
     '<div class="field"><label for="tIn">Time in</label><input type="time" id="tIn" value="'+ti+'"></div>'+
     '<div class="field"><label for="tOut">Time out</label><input type="time" id="tOut" value="'+to+'"></div></div>'+
@@ -1568,7 +1568,7 @@ function renderDayModal(ds){
     '<div class="field"><label for="dRemarksPresent">Remarks</label><textarea id="dRemarksPresent">'+esc(log.remarks||'')+'</textarea></div>'+
     '</div>';
   var obIn=getStatusData(log,'ob').in||emp.shiftStart,obOut=getStatusData(log,'ob').out||emp.shiftEnd,withOBOT=getStatusData(log,'ob').withOT||false;
-  html+='<div id="obF" style="'+(status==='ob'?'':'display:none;')+'">'+
+  html+='<div id="obF" style="'+(initStatuses.indexOf('ob')>-1?'':'display:none;')+'">'+
     '<div class="field-row">'+
     '<div class="field"><label for="obIn">Time in</label><input type="time" id="obIn" value="'+obIn+'"></div>'+
     '<div class="field"><label for="obOut">Time out</label><input type="time" id="obOut" value="'+obOut+'"></div></div>'+
@@ -1593,7 +1593,7 @@ function renderDayModal(ds){
     '</div>';
   var origDay=log.originalDay!=null?log.originalDay:((emp.weeklyOff||[])[0]!=null?(emp.weeklyOff||[])[0]:0);
   var newDay=log.newDay!=null?log.newDay:1;
-  html+='<div id="cdF" style="'+(status==='changeday'?'':'display:none;')+'">'+
+  html+='<div id="cdF" style="'+(initStatuses.indexOf('changeday')>-1?'':'display:none;')+'">'+
     '<div class="field-row">'+
     '<div class="field"><label for="cdOrig">Original Day Off</label><select id="cdOrig">';
   WD_FULL.forEach(function(w,i){html+='<option value="'+i+'"'+(origDay===i?' selected':'')+'>'+w+'</option>';});
@@ -1604,14 +1604,15 @@ function renderDayModal(ds){
     '<div class="field"><label for="cdRemarks">Remarks</label><textarea id="cdRemarks" placeholder="Reason for change…">'+esc(log.remarks||'')+'</textarea></div>'+
     '</div>';
   var ctStart=log.newStart||emp.shiftStart,ctEnd=log.newEnd||emp.shiftEnd;
-  html+='<div id="ctF" style="'+(status==='changetime'?'':'display:none;')+'">'+
+  html+='<div id="ctF" style="'+(initStatuses.indexOf('changetime')>-1?'':'display:none;')+'">'+
     '<div class="field-row">'+
     '<div class="field"><label for="ctStart">New Start Time</label><input type="time" id="ctStart" value="'+ctStart+'"></div>'+
     '<div class="field"><label for="ctEnd">New End Time</label><input type="time" id="ctEnd" value="'+ctEnd+'"></div></div>'+
     '<div class="field"><label for="ctRemarks">Remarks</label><textarea id="ctRemarks" placeholder="Reason for change…">'+esc(log.remarks||'')+'</textarea></div>'+
     '</div>';
-  html+='<div id="absLeaveF" style="'+(['absent','leave'].indexOf(status)>-1?'':'display:none;')+'">'+
-    '<div class="field"><label for="absRemarks">Remarks</label><textarea id="absRemarks" placeholder="Optional notes…">'+esc((['absent','leave'].indexOf(status)>-1)?log.remarks||'':'')+'</textarea></div>'+
+  var absLeaveKey=initStatuses.indexOf('absent')>-1?'absent':(initStatuses.indexOf('leave')>-1?'leave':null);
+  html+='<div id="absLeaveF" style="'+(absLeaveKey?'':'display:none;')+'">'+
+    '<div class="field"><label for="absRemarks">Remarks</label><textarea id="absRemarks" placeholder="Optional notes…">'+esc(absLeaveKey?(getStatusData(log,absLeaveKey).remarks||''):'')+'</textarea></div>'+
     '</div>';
   html+='<p id="dayErr" style="display:none;color:var(--red);font-size:12px;margin:6px 0 4px;"></p>';
   html+='<div class="modal-footer">'+
@@ -1626,7 +1627,7 @@ function attachModal(){
   var ds=state.modal.date,emp=activeEmp();
   var bd=document.getElementById('dayBd');
   var existingLog=getLog(emp.id,ds)||{};
-  var curStatus=existingLog.status||'none';
+  var curStatuses=getLogStatuses(existingLog); // array, e.g. ['present','ob']
   var existingHol=holidayFor(ds);
   var curHolType=existingHol?(existingHol.type==='regular'?'regular':'special'):'special';
   function closeDay(){state.modal=null;render();}
@@ -1643,26 +1644,36 @@ function attachModal(){
     };
   });
   var paneIds={present:'presentF',ob:'obF',hostob:'hostobF',changeday:'cdF',changetime:'ctF',absent:'absLeaveF',leave:'absLeaveF'};
+  function refreshPanes(){
+    ['presentF','obF','hostobF','cdF','ctF','absLeaveF'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
+    curStatuses.forEach(function(key){
+      var pane=paneIds[key];
+      if(pane){var el=document.getElementById(pane);if(el)el.style.display='';}
+    });
+    document.querySelectorAll('.status-chip').forEach(function(c){
+      var key=c.getAttribute('data-status');
+      c.classList.toggle('active',key==='none'?curStatuses.length===0:curStatuses.indexOf(key)>-1);
+    });
+    if(curStatuses.indexOf('present')>-1){
+      var rmk=document.getElementById('dRemarksPresent');
+      if(rmk&&!rmk.value.trim())rmk.value='Host Store';
+    }
+  }
   document.querySelectorAll('.status-chip').forEach(function(chip){
     chip.onclick=function(){
-      curStatus=chip.getAttribute('data-status');
-      document.querySelectorAll('.status-chip').forEach(function(c){c.classList.toggle('active',c===chip);});
-      ['presentF','obF','hostobF','cdF','ctF','absLeaveF'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
-      var pane=paneIds[curStatus];if(pane){var el=document.getElementById(pane);if(el)el.style.display='';}
-      if(curStatus==='present'){
-        var rmk=document.getElementById('dRemarksPresent');
-        if(rmk&&!rmk.value.trim())rmk.value='Host Store';
+      var key=chip.getAttribute('data-status');
+      if(key==='none'){
+        curStatuses=[];
+      } else {
+        var idx=curStatuses.indexOf(key);
+        if(idx>-1)curStatuses.splice(idx,1);else curStatuses.push(key);
       }
-      if(curStatus==='hostob'){
-        var rmk2=document.getElementById('hostobRemarks');
-        if(rmk2&&!rmk2.value.trim())rmk2.value='Host Store';
-      }
+      refreshPanes();
     };
   });
   var errEl=document.getElementById('dayErr');
   document.getElementById('saveDayM').onclick=function(){
     errEl.style.display='none';
-    var curStatuses = curStatus==='none' ? [] : [curStatus];
     if(holCheck.checked){
       var lbl=document.getElementById('holLabel').value.trim();
       if(!lbl){errEl.textContent='Give the holiday a name.';errEl.style.display='';return;}
