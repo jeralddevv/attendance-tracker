@@ -1662,6 +1662,7 @@ function attachModal(){
   var errEl=document.getElementById('dayErr');
   document.getElementById('saveDayM').onclick=function(){
     errEl.style.display='none';
+    var curStatuses = curStatus==='none' ? [] : [curStatus];
     if(holCheck.checked){
       var lbl=document.getElementById('holLabel').value.trim();
       if(!lbl){errEl.textContent='Give the holiday a name.';errEl.style.display='';return;}
