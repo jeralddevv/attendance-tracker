@@ -576,6 +576,23 @@ function metrics(emp,log){
   };
 }
 
+function getLogStatuses(log){
+  if(!log)return[];
+  if(log.statuses)return log.statuses;
+  if(log.status)return[log.status];
+  return[];
+}
+function getStatusData(log,key){
+  if(!log)return{};
+  if(log.statuses)return log[key]||{};
+  return log; // backward compat: old single-status logs store fields at top level
+}
+function metricsFor(emp,log,key){
+  var data=getStatusData(log,key);
+  var merged={status:key,in:data.in,out:data.out,withOT:data.withOT};
+  return metrics(emp,merged);
+}
+
 function getWeekStart(d){
   var ws=new Date(d);
   ws.setDate(ws.getDate()-ws.getDay());
@@ -612,13 +629,12 @@ function computeRange(emp,start,end){
   while(d<=end){
     var log=getLog(emp.id,isoDate(d));
     if(log){
-      var m=metrics(emp,log);
-      if(log.status==='present'){present++;hours+=m.hours;ot+=m.otHours;late+=m.lateMins;}
-      else if(log.status==='ob'){ob++;hours+=m.hours;ot+=m.otHours;}
-      else if(log.status==='hostob'){present++;ob++;hours+=m.hours;ot+=m.otHours;}
-      else if(log.status==='ob'){ob++;hours+=m.hours;ot+=m.otHours;}
-      else if(log.status==='absent')absent++;
-      else if(log.status==='leave')leave++;
+      getLogStatuses(log).forEach(function(key){
+        if(key==='present'){var m=metricsFor(emp,log,'present');present++;hours+=m.hours;ot+=m.otHours;late+=m.lateMins;}
+        else if(key==='ob'){var m2=metricsFor(emp,log,'ob');ob++;hours+=m2.hours;ot+=m2.otHours;}
+        else if(key==='absent')absent++;
+        else if(key==='leave')leave++;
+      });
     }
     d.setDate(d.getDate()+1);
   }
@@ -875,32 +891,30 @@ function renderCalTab(){
     if(inMonth){
       html+='<div class="cal-tags">';
       if(log){
-        var ttl=log.remarks?' title="'+esc(log.remarks)+'"':'';
-        if(log.status==='present'){
-          var m=metrics(emp,log);
-          html+=m.lateMins>0?'<span class="cal-tag late"'+ttl+'>'+m.lateMins+'m late</span>':'<span class="cal-tag present"'+ttl+'>Present</span>';
-          if(log.in&&log.out)html+='<span class="cal-tag time">'+fmtTime(log.in)+'–'+fmtTime(log.out)+'</span>';
-          if(m.otHours>0)html+='<span class="cal-tag ot">+'+m.otHours.toFixed(1)+'h OT</span>';
-        } else if(log.status==='absent'){
-          html+='<span class="cal-tag absent"'+ttl+'>Absent</span>';
-        } else if(log.status==='leave'){
-          html+='<span class="cal-tag leave"'+ttl+'>Leave</span>';
-        } else if(log.status==='ob'){
-          var mo=metrics(emp,log);
-          html+='<span class="cal-tag ob"'+ttl+'>OB</span>';
-          if(log.in&&log.out)html+='<span class="cal-tag time">'+fmtTime(log.in)+'–'+fmtTime(log.out)+'</span>';
-          if(mo.otHours>0)html+='<span class="cal-tag ot">+'+mo.otHours.toFixed(1)+'h OT</span>';
-        } else if(log.status==='hostob'){
-          var mho=metrics(emp,log);
-          html+='<span class="cal-tag present"'+ttl+'>Host Store</span><span class="cal-tag ob">+OB</span>';
-          if(log.in&&log.out)html+='<span class="cal-tag time">'+fmtTime(log.in)+'–'+fmtTime(log.out)+'</span>';
-          if(mho.otHours>0)html+='<span class="cal-tag ot">+'+mho.otHours.toFixed(1)+'h OT</span>';
-        } else if(log.status==='changeday'){
-          html+='<span class="cal-tag" style="background:var(--teal-tint);color:var(--teal);" '+ttl+'>Day-off Chg</span>';
-        } else if(log.status==='changetime'){
-          html+='<span class="cal-tag" style="background:var(--pink-tint);color:var(--pink);" '+ttl+'>Sched Chg</span>';
-          if(log.newStart&&log.newEnd)html+='<span class="cal-tag time">'+fmtTime(log.newStart)+'–'+fmtTime(log.newEnd)+'</span>';
-        }
+        getLogStatuses(log).forEach(function(key){
+          var data=getStatusData(log,key);
+          var ttl=data.remarks?' title="'+esc(data.remarks)+'"':'';
+          if(key==='present'){
+            var m=metricsFor(emp,log,'present');
+            html+=m.lateMins>0?'<span class="cal-tag late"'+ttl+'>'+m.lateMins+'m late</span>':'<span class="cal-tag present"'+ttl+'>Host Store</span>';
+            if(data.in&&data.out)html+='<span class="cal-tag time">'+fmtTime(data.in)+'–'+fmtTime(data.out)+'</span>';
+            if(m.otHours>0)html+='<span class="cal-tag ot">+'+m.otHours.toFixed(1)+'h OT</span>';
+          } else if(key==='absent'){
+            html+='<span class="cal-tag absent"'+ttl+'>Absent</span>';
+          } else if(key==='leave'){
+            html+='<span class="cal-tag leave"'+ttl+'>Leave</span>';
+          } else if(key==='ob'){
+            var mo=metricsFor(emp,log,'ob');
+            html+='<span class="cal-tag ob"'+ttl+'>OB</span>';
+            if(data.in&&data.out)html+='<span class="cal-tag time">'+fmtTime(data.in)+'–'+fmtTime(data.out)+'</span>';
+            if(mo.otHours>0)html+='<span class="cal-tag ot">+'+mo.otHours.toFixed(1)+'h OT</span>';
+          } else if(key==='changeday'){
+            html+='<span class="cal-tag" style="background:var(--teal-tint);color:var(--teal);" '+ttl+'>Day-off Chg</span>';
+          } else if(key==='changetime'){
+            html+='<span class="cal-tag" style="background:var(--pink-tint);color:var(--pink);" '+ttl+'>Sched Chg</span>';
+            if(data.newStart&&data.newEnd)html+='<span class="cal-tag time">'+fmtTime(data.newStart)+'–'+fmtTime(data.newEnd)+'</span>';
+          }
+        });
       } else if(holiday){
         html+='<span class="cal-tag holiday '+(holiday.type||'custom')+'" title="'+esc(holiday.label)+'">'+esc(holiday.label)+'</span>';
       } else if(isOff){
@@ -918,34 +932,46 @@ function renderCalTab(){
 function dayRowHtml(emp,ds){
   var d=parseIso(ds),log=getLog(emp.id,ds),holiday=holidayFor(ds);
   var dayName=d.toLocaleDateString(undefined,{weekday:'short'});
-  var statusCell,inCell='—',outCell='—',hoursCell='—',otCell='—',lateCell='—',remarksCell='';
+  var statusCell='<span style="color:var(--ink-faint);">—</span>',inCell='—',outCell='—',hoursCell='—',otCell='—',lateCell='—',remarksCell='';
   if(log){
-    var m=metrics(emp,log);
-    if(log.status==='present'){
-      statusCell='<span class="badge present">Present</span>';
-      inCell=log.in||'—';outCell=log.out||'—';
-      hoursCell=m.hours.toFixed(1);otCell=m.otHours.toFixed(1);lateCell=String(m.lateMins);
-    } else if(log.status==='absent'){
-      statusCell='<span class="badge absent">Absent</span>';
-    } else if(log.status==='leave'){
-      statusCell='<span class="badge leave">Leave</span>';
-    } else if(log.status==='ob'){
-      var mo=metrics(emp,log);
-      statusCell='<span class="badge ob">Off. Business</span>';
-      inCell=log.in||'—';outCell=log.out||'—';
-      hoursCell=mo.hours.toFixed(1);otCell=mo.otHours.toFixed(1);lateCell='0';
-      if(log.destination)remarksCell='Dest: '+esc(log.destination)+(log.remarks?'; '+esc(log.remarks):'');
-      else remarksCell=esc(log.remarks||'');
-    } else if(log.status==='changeday'){
-      statusCell='<span class="badge changeday">Day-off Chg</span>';
-      remarksCell='Orig: '+esc(WD_FULL[log.originalDay]||'')+' → New: '+esc(WD_FULL[log.newDay]||'')+(log.remarks?'; '+esc(log.remarks):'');
-    } else if(log.status==='changetime'){
-      statusCell='<span class="badge changetime">Sched Chg</span>';
-      remarksCell='New: '+(log.newStart||'')+'–'+(log.newEnd||'')+(log.remarks?'; '+esc(log.remarks):'');
-    } else {
-      statusCell='<span style="color:var(--ink-faint);">—</span>';
+    var keys=getLogStatuses(log);
+    var badges=[],hoursSum=0,otSum=0,lateSum=0,remarksParts=[];
+    keys.forEach(function(key){
+      var data=getStatusData(log,key);
+      if(key==='present'){
+        var m=metricsFor(emp,log,'present');
+        badges.push('<span class="badge present">Host Store</span>');
+        if(data.in)inCell=data.in; if(data.out)outCell=data.out;
+        hoursSum+=m.hours;otSum+=m.otHours;lateSum+=m.lateMins;
+        if(data.remarks)remarksParts.push(data.remarks);
+      } else if(key==='absent'){
+        badges.push('<span class="badge absent">Absent</span>');
+        if(data.remarks)remarksParts.push(data.remarks);
+      } else if(key==='leave'){
+        badges.push('<span class="badge leave">Leave</span>');
+        if(data.remarks)remarksParts.push(data.remarks);
+      } else if(key==='ob'){
+        var mo=metricsFor(emp,log,'ob');
+        badges.push('<span class="badge ob">OB</span>');
+        if(inCell==='—'){if(data.in)inCell=data.in;if(data.out)outCell=data.out;}
+        hoursSum+=mo.hours;otSum+=mo.otHours;
+        if(data.destination)remarksParts.push('Dest: '+data.destination);
+        if(data.remarks)remarksParts.push(data.remarks);
+      } else if(key==='changeday'){
+        badges.push('<span class="badge changeday">Day-off Chg</span>');
+        remarksParts.push('Orig: '+(WD_FULL[data.originalDay]||'')+' → New: '+(WD_FULL[data.newDay]||''));
+        if(data.remarks)remarksParts.push(data.remarks);
+      } else if(key==='changetime'){
+        badges.push('<span class="badge changetime">Sched Chg</span>');
+        remarksParts.push('New: '+(data.newStart||'')+'–'+(data.newEnd||''));
+        if(data.remarks)remarksParts.push(data.remarks);
+      }
+    });
+    if(badges.length){
+      statusCell=badges.join(' ');
+      hoursCell=hoursSum.toFixed(1);otCell=otSum.toFixed(1);lateCell=String(lateSum);
+      remarksCell=esc(remarksParts.join('; '));
     }
-    if(log.status!=='ob'&&log.status!=='changeday'&&log.status!=='changetime')remarksCell=esc(log.remarks||'');
   } else if(holiday){
     statusCell='<span class="cal-tag holiday '+(holiday.type||'custom')+'">'+esc(holiday.label)+'</span>';
   } else {
@@ -1503,12 +1529,12 @@ function attachAdminPage(){
 function renderDayModal(ds){
   var emp=activeEmp(),d=parseIso(ds),log=getLog(emp.id,ds)||{},holiday=holidayFor(ds);
   var status=log.status||'none';
-  var ti=log.in||emp.shiftStart,to=log.out||emp.shiftEnd;
+  var ti=getStatusData(log,'present').in||emp.shiftStart,to=getStatusData(log,'present').out||emp.shiftEnd;
   var holType=holiday?(holiday.type==='regular'?'regular':'special'):'special';
-  var withOT=log.withOT||false;
+  var withOT=getStatusData(log,'present').withOT||false;
   var statusOpts=[
     ['none','No record'],['present','Host Store'],['absent','Absent'],['leave','Leave'],
-    ['ob','Official Business'],['hostob','Host Store + OB'],['changeday','Change Day-Off'],['changetime','Change Time Schedule']
+    ['ob','Official Business'],['changeday','Change Day-Off'],['changetime','Change Time Schedule']
   ];
   var html='<div class="modal-backdrop" id="dayBd"><div class="modal-panel">';
   html+='<div class="modal-head"><h3>'+d.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</h3>'+
@@ -1525,8 +1551,10 @@ function renderDayModal(ds){
   html+='<div class="section-divider"></div>';
   html+='<p class="section-label">Attendance</p>';
   html+='<div class="chip-row" style="margin-bottom:14px;">';
+  var initStatuses=getLogStatuses(log);
   statusOpts.forEach(function(o){
-    html+='<button type="button" class="chip status-chip'+(status===o[0]?' active':'')+'" data-status="'+o[0]+'">'+o[1]+'</button>';
+    var isActive=o[0]==='none'?initStatuses.length===0:initStatuses.indexOf(o[0])>-1;
+    html+='<button type="button" class="chip status-chip'+(isActive?' active':'')+'" data-status="'+o[0]+'">'+o[1]+'</button>';
   });
   html+='</div>';
   html+='<div id="presentF" style="'+(status==='present'?'':'display:none;')+'">'+
@@ -1539,7 +1567,7 @@ function renderDayModal(ds){
     '</div>'+
     '<div class="field"><label for="dRemarksPresent">Remarks</label><textarea id="dRemarksPresent">'+esc(log.remarks||'')+'</textarea></div>'+
     '</div>';
-  var obIn=log.in||emp.shiftStart,obOut=log.out||emp.shiftEnd,withOBOT=log.withOT||false;
+  var obIn=getStatusData(log,'ob').in||emp.shiftStart,obOut=getStatusData(log,'ob').out||emp.shiftEnd,withOBOT=getStatusData(log,'ob').withOT||false;
   html+='<div id="obF" style="'+(status==='ob'?'':'display:none;')+'">'+
     '<div class="field-row">'+
     '<div class="field"><label for="obIn">Time in</label><input type="time" id="obIn" value="'+obIn+'"></div>'+
@@ -1642,52 +1670,52 @@ function attachModal(){
     } else {
       state.holidays=state.holidays.filter(function(h){return h.date!==ds;});
     }
-    var actDesc='';
-    var actType=curStatus;
-    if(curStatus==='none'){
+    var actDesc='',actType='present';
+    if(curStatuses.length===0){
       clearLog(emp.id,ds);actDesc='Log cleared for '+ds;actType='delete';
-    } else if(curStatus==='present'){
-      var ti=document.getElementById('tIn').value,to=document.getElementById('tOut').value;
-      if(!ti||!to){errEl.textContent='Add time in and time out.';errEl.style.display='';return;}
-      if(t2m(to)<=t2m(ti)){errEl.textContent='Time out must be after time in.';errEl.style.display='';return;}
-      var hasOT=document.getElementById('otToggle').checked;
-      setLog(emp.id,ds,{status:'present',in:ti,out:to,withOT:hasOT,remarks:document.getElementById('dRemarksPresent').value.trim()});
-      actDesc='Present '+ti+'–'+to+(hasOT?' (OT)':'')+' on '+ds;
-    } else if(curStatus==='ob'){
-      var oIn=document.getElementById('obIn').value,oOut=document.getElementById('obOut').value;
-      if(!oIn||!oOut){errEl.textContent='Add time in and time out.';errEl.style.display='';return;}
-      if(t2m(oOut)<=t2m(oIn)){errEl.textContent='Time out must be after time in.';errEl.style.display='';return;}
-      var obD=document.getElementById('obDest').value.trim();
-      if(!obD){errEl.textContent='Please enter the destination.';errEl.style.display='';return;}
-      var hasOBOT=document.getElementById('obOTToggle').checked;
-      setLog(emp.id,ds,{status:'ob',in:oIn,out:oOut,destination:obD,withOT:hasOBOT,remarks:document.getElementById('obRemarks').value.trim()});
-      actDesc='OB at '+obD+' '+oIn+'–'+oOut+(hasOBOT?' (OT)':'')+' on '+ds;
-    } else if(curStatus==='hostob'){
-      var hoI=document.getElementById('hoIn').value,hoO=document.getElementById('hoOut').value;
-      if(!hoI||!hoO){errEl.textContent='Add time in and time out.';errEl.style.display='';return;}
-      if(t2m(hoO)<=t2m(hoI)){errEl.textContent='Time out must be after time in.';errEl.style.display='';return;}
-      var hoD=document.getElementById('hoDest').value.trim();
-      if(!hoD){errEl.textContent='Please enter the OB destination.';errEl.style.display='';return;}
-      var hasHoOT=document.getElementById('hoOTToggle').checked;
-      setLog(emp.id,ds,{status:'hostob',in:hoI,out:hoO,destination:hoD,withOT:hasHoOT,remarks:document.getElementById('hostobRemarks').value.trim()});
-      actDesc='Host Store + OB at '+hoD+' '+hoI+'–'+hoO+(hasHoOT?' (OT)':'')+' on '+ds;
-    } else if(curStatus==='changeday'){
-      var origD=Number(document.getElementById('cdOrig').value);
-      var newD=Number(document.getElementById('cdNew').value);
-      if(origD===newD){errEl.textContent='Original and new day off must be different.';errEl.style.display='';return;}
-      var conflictDs=getChangedayDsForWeek(emp,parseIso(ds),ds);
-      if(conflictDs){errEl.textContent='This week already has a day-off change logged on '+conflictDs+'. Remove it first.';errEl.style.display='';return;}
-      setLog(emp.id,ds,{status:'changeday',originalDay:origD,newDay:newD,remarks:document.getElementById('cdRemarks').value.trim()});
-      actDesc='Day-off changed from '+WD_FULL[origD]+' to '+WD_FULL[newD]+' ('+ds+')';
-    } else if(curStatus==='changetime'){
-      var ctS=document.getElementById('ctStart').value,ctE=document.getElementById('ctEnd').value;
-      if(!ctS||!ctE){errEl.textContent='Please enter new start and end times.';errEl.style.display='';return;}
-      if(t2m(ctE)<=t2m(ctS)){errEl.textContent='End time must be after start time.';errEl.style.display='';return;}
-      setLog(emp.id,ds,{status:'changetime',newStart:ctS,newEnd:ctE,remarks:document.getElementById('ctRemarks').value.trim()});
-      actDesc='Schedule changed to '+ctS+'–'+ctE+' on '+ds;
-    } else if(curStatus==='absent'||curStatus==='leave'){
-      setLog(emp.id,ds,{status:curStatus,remarks:document.getElementById('absRemarks').value.trim()});
-      actDesc=(curStatus==='absent'?'Absent':'On leave')+' on '+ds;
+    } else {
+      var logObj={statuses:curStatuses.slice()};
+      var descParts=[];
+      for(var i=0;i<curStatuses.length;i++){
+        var key=curStatuses[i];
+        if(key==='present'){
+          var ti=document.getElementById('tIn').value,to=document.getElementById('tOut').value;
+          if(!ti||!to){errEl.textContent='Add time in and time out for Host Store.';errEl.style.display='';return;}
+          if(t2m(to)<=t2m(ti)){errEl.textContent='Host Store time out must be after time in.';errEl.style.display='';return;}
+          logObj.present={in:ti,out:to,withOT:document.getElementById('otToggle').checked,remarks:document.getElementById('dRemarksPresent').value.trim()};
+          descParts.push('Host Store '+ti+'–'+to);
+        } else if(key==='ob'){
+          var oIn=document.getElementById('obIn').value,oOut=document.getElementById('obOut').value;
+          if(!oIn||!oOut){errEl.textContent='Add time in and time out for OB.';errEl.style.display='';return;}
+          if(t2m(oOut)<=t2m(oIn)){errEl.textContent='OB time out must be after time in.';errEl.style.display='';return;}
+          var obD=document.getElementById('obDest').value.trim();
+          if(!obD){errEl.textContent='Please enter the OB destination.';errEl.style.display='';return;}
+          logObj.ob={in:oIn,out:oOut,destination:obD,withOT:document.getElementById('obOTToggle').checked,remarks:document.getElementById('obRemarks').value.trim()};
+          descParts.push('OB at '+obD);
+        } else if(key==='absent'){
+          logObj.absent={remarks:document.getElementById('absRemarks').value.trim()};
+          descParts.push('Absent');
+        } else if(key==='leave'){
+          logObj.leave={remarks:document.getElementById('absRemarks').value.trim()};
+          descParts.push('On leave');
+        } else if(key==='changeday'){
+          var origD=Number(document.getElementById('cdOrig').value),newD=Number(document.getElementById('cdNew').value);
+          if(origD===newD){errEl.textContent='Original and new day off must be different.';errEl.style.display='';return;}
+          var conflictDs=getChangedayDsForWeek(emp,parseIso(ds),ds);
+          if(conflictDs){errEl.textContent='This week already has a day-off change logged on '+conflictDs+'.';errEl.style.display='';return;}
+          logObj.changeday={originalDay:origD,newDay:newD,remarks:document.getElementById('cdRemarks').value.trim()};
+          descParts.push('Day-off changed to '+WD_FULL[newD]);
+        } else if(key==='changetime'){
+          var ctS=document.getElementById('ctStart').value,ctE=document.getElementById('ctEnd').value;
+          if(!ctS||!ctE){errEl.textContent='Please enter new start and end times.';errEl.style.display='';return;}
+          if(t2m(ctE)<=t2m(ctS)){errEl.textContent='End time must be after start time.';errEl.style.display='';return;}
+          logObj.changetime={newStart:ctS,newEnd:ctE,remarks:document.getElementById('ctRemarks').value.trim()};
+          descParts.push('Schedule changed to '+ctS+'–'+ctE);
+        }
+      }
+      setLog(emp.id,ds,logObj);
+      actDesc=descParts.join(' + ')+' on '+ds;
+      actType=curStatuses[0];
     }
     addActivity(actType,emp.name,actDesc,emp.id);
     Promise.all([saveLogs(),saveHolidays(),saveEmployees(),saveActivityLog()]).then(function(){state.modal=null;render();});
